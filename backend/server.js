@@ -127,6 +127,47 @@ function verifyPassword(password, storedPassword) {
     return false;
   }
 }
+// --------------------------------------------------
+// INITIAL ADMIN SETUP
+// --------------------------------------------------
+
+function createInitialAdmin() {
+  const adminEmail = process.env.ADMIN_EMAIL?.toLowerCase().trim();
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (!adminEmail || !adminPassword) {
+    return;
+  }
+
+  const existingAdmin = db.users.find(
+    (user) => user.role === "admin"
+  );
+
+  if (existingAdmin) {
+    return;
+  }
+
+  if (adminPassword.length < 6) {
+    console.log("ADMIN_PASSWORD must be at least 6 characters.");
+    return;
+  }
+
+  const admin = {
+    id: nextId("users"),
+    name: "Admin",
+    email: adminEmail,
+    password_hash: hashPassword(adminPassword),
+    role: "admin",
+    created_at: new Date().toISOString()
+  };
+
+  db.users.push(admin);
+  saveDatabase();
+
+  console.log("Initial admin account created.");
+}
+
+createInitialAdmin();
 
 // --------------------------------------------------
 // JWT
