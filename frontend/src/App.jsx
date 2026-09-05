@@ -126,46 +126,66 @@ function App() {
   }
 
   async function checkout() {
-    if (!user) {
-      setPage("auth");
-      setMessage("Please login before checkout.");
+  if (!user) {
+    setPage("auth");
+    setMessage("Please login before checkout.");
+    return;
+  }
+
+  if (!cart.length) {
+    setMessage("Your cart is empty.");
+    return;
+  }
+
+  const village = prompt("Enter your Village / Town name:");
+  if (!village) return;
+
+  const address = prompt("Enter your complete delivery address:");
+  if (!address) return;
+
+  try {
+    setMessage("Checking your delivery location...");
+
+    const check = await api("/api/delivery/check", {
+      method: "POST",
+      body: JSON.stringify({
+        village,
+        address
+      })
+    });
+
+    if (!check.eligible) {
+      setMessage(
+        `Sorry, delivery is not available. Your location is ${check.distanceKm} km away.`
+      );
       return;
     }
-    const latitude = Number(prompt("Enter your delivery latitude (we will add a map picker later):"));
-    const longitude = Number(prompt("Enter your delivery longitude:"));
-    const address = prompt("Enter your complete delivery address:");
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !address) return;
 
-    try {
-      const check = await api("/api/delivery/check", {
-        method: "POST",
-        body: JSON.stringify({ latitude, longitude })
-      });
-      if (!check.eligible) {
-        setMessage(`Delivery unavailable. Your location is ${check.distanceKm} km away.`);
-        return;
-      }
+    const order = await api("/api/orders", {
+      method: "POST",
+      body: JSON.stringify({
+        items: cart.map(i => ({
+          product_id: i.id,
+          size: i.size,
+          quantity: i.quantity
+        })),
+        address: `${village}, ${address}`,
+        latitude: check.latitude,
+        longitude: check.longitude
+      })
+    });
 
-      const order = await api("/api/orders", {
-        method: "POST",
-        body: JSON.stringify({
-          items: cart.map(i => ({
-            product_id: i.id,
-            size: i.size,
-            quantity: i.quantity
-          })),
-          address,
-          latitude,
-          longitude
-        })
-      });
+    setCart([]);
+    setPage("orders");
+    await loadOrders();
 
-      setCart([]);
-      setPage("orders");
-      await loadOrders();
-      setMessage(`Order #${order.orderId} created. Payment integration will be connected next.`);
-    } catch (e) { setMessage(e.message); }
+    setMessage(`Order #${order.orderId} created successfully.`);
+  } catch (e) {
+    setMessage(e.message);
   }
+}
+
+      
 
   async function updateOrder(id, status) {
     try {

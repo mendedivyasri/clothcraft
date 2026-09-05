@@ -523,39 +523,65 @@ app.delete(
 
 app.post(
   "/api/delivery/check",
-  (req, res) => {
+  async (req, res) => {
     const {
-      latitude,
-      longitude
+      village,
+      address
     } = req.body;
 
-    if (
-      !Number.isFinite(Number(latitude)) ||
-      !Number.isFinite(Number(longitude))
-    ) {
+    if (!village || !address) {
       return res.status(400).json({
-        message: "Valid coordinates are required"
+        message: "Village/Town and complete address are required"
       });
     }
 
-    const distance = distanceKm(
-      STORE_LATITUDE,
-      STORE_LONGITUDE,
-      Number(latitude),
-      Number(longitude)
-    );
+    try {
+      const searchText = `${address}, ${village}, Telangana, India`;
 
-    res.json({
-      eligible:
-        distance <= DELIVERY_RADIUS_KM,
-      distanceKm:
-        Number(distance.toFixed(2)),
-      radiusKm:
-        DELIVERY_RADIUS_KM
-    });
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(searchText)}`,
+        {
+          headers: {
+            "User-Agent": "ClothCraft/1.0"
+          }
+        }
+      );
+
+      const locations = await response.json();
+
+      if (!locations.length) {
+        return res.status(400).json({
+          message:
+            "Location not found. Please check your village/town name and address."
+        });
+      }
+
+      const latitude = Number(locations[0].lat);
+      const longitude = Number(locations[0].lon);
+
+      const distance = distanceKm(
+        STORE_LATITUDE,
+        STORE_LONGITUDE,
+        latitude,
+        longitude
+      );
+
+      res.json({
+        eligible: distance <= DELIVERY_RADIUS_KM,
+        distanceKm: Number(distance.toFixed(2)),
+        radiusKm: DELIVERY_RADIUS_KM,
+        latitude,
+        longitude
+      });
+    } catch (error) {
+      console.error("Geocoding error:", error);
+
+      res.status(500).json({
+        message: "Unable to check this location right now."
+      });
+    }
   }
 );
-
 // --------------------------------------------------
 // CREATE ORDER
 // --------------------------------------------------
